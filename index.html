@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>ETH 15M 专业入场系统</title>
+<title>ETH 15M 专业报警系统</title>
 <style>
 body{
 background:#000;
@@ -19,7 +19,7 @@ text-align:center;
 </head>
 <body>
 
-<h1>ETH 15分钟专业系统</h1>
+<h1>ETH 15分钟专业报警系统</h1>
 
 <div class="big">当前价格：<span id="price">加载中...</span></div>
 <div class="big">趋势方向：<span id="trend">计算中</span></div>
@@ -29,7 +29,13 @@ text-align:center;
 <div class="big">止损：<span id="sl">-</span></div>
 <div class="big">止盈：<span id="tp">-</span></div>
 
+<audio id="alertSound">
+<source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg">
+</audio>
+
 <script>
+
+let lastAlert = "";
 
 async function fetchData(){
 let res = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=80");
@@ -85,10 +91,17 @@ allow="允许做空";
 document.getElementById("allow").className="red";
 sl=(price+20).toFixed(2);
 tp=(price-40).toFixed(2);
+
+if(lastAlert !== "short"){
+document.getElementById("alertSound").play();
+lastAlert = "short";
+}
+
 }
 }else{
 safe="不在安全区";
 document.getElementById("safe").className="gray";
+lastAlert="";
 }
 
 }else if(ma7 > ma25 && ma25Slope > 0){
@@ -108,16 +121,24 @@ allow="允许做多";
 document.getElementById("allow").className="green";
 sl=(price-20).toFixed(2);
 tp=(price+40).toFixed(2);
+
+if(lastAlert !== "long"){
+document.getElementById("alertSound").play();
+lastAlert = "long";
+}
+
 }
 }else{
 safe="不在安全区";
 document.getElementById("safe").className="gray";
+lastAlert="";
 }
 
 }else{
 trend="震荡区域";
 document.getElementById("trend").className="yellow";
 zone="禁止交易";
+lastAlert="";
 }
 
 document.getElementById("zone").innerText=zone;
