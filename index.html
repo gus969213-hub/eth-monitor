@@ -2,38 +2,32 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>ETH 15M 趋势系统</title>
+<title>ETH 15M 高胜率系统</title>
 <style>
 body{
-    background:#111;
+    background:#000;
     color:white;
     font-family:Arial;
     text-align:center;
 }
-.box{
-    margin-top:30px;
-    padding:20px;
-}
 .big{
-    font-size:28px;
-    margin:15px 0;
+    font-size:26px;
+    margin:15px;
 }
 .green{color:#00ff88;}
 .red{color:#ff4d4d;}
-.wait{color:gray;}
+.gray{color:#888;}
 </style>
 </head>
 <body>
 
-<h1>ETH 15分钟趋势系统</h1>
+<h1>ETH 15分钟高胜率系统</h1>
 
-<div class="box">
 <div class="big">当前价格：<span id="price">加载中...</span></div>
 <div class="big">趋势：<span id="trend">计算中...</span></div>
 <div class="big">信号：<span id="signal">等待中</span></div>
 <div class="big">止损：<span id="sl">-</span></div>
 <div class="big">止盈：<span id="tp">-</span></div>
-</div>
 
 <audio id="alertSound">
 <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg">
@@ -44,10 +38,11 @@ body{
 let lastSignal = "";
 
 async function fetchData(){
-    let res = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=50");
+    let res = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=60");
     let data = await res.json();
-
     let closes = data.map(c => parseFloat(c[4]));
+    let highs = data.map(c => parseFloat(c[2]));
+    let lows = data.map(c => parseFloat(c[3]));
     let price = closes[closes.length-1];
 
     document.getElementById("price").innerText = price.toFixed(2);
@@ -72,17 +67,20 @@ async function fetchData(){
 
     let rsi = RSI(closes);
 
-    let trendText="";
-    let signalText="等待中";
+    let trend="震荡";
+    let signal="等待中";
     let sl="-";
     let tp="-";
 
-    if(ma7>ma25){
-        trendText="多头";
+    let strongTrend = Math.abs(ma7 - ma25) > 3;  // 过滤弱趋势
+    let nearMA = Math.abs(price - ma7) < 8;      // 回踩均线附近
+
+    if(ma7 > ma25 && strongTrend){
+        trend="多头";
         document.getElementById("trend").className="green";
 
-        if(rsi>50){
-            signalText="做多";
+        if(rsi > 55 && nearMA){
+            signal="做多";
             document.getElementById("signal").className="green";
             sl=(price-20).toFixed(2);
             tp=(price+40).toFixed(2);
@@ -93,12 +91,12 @@ async function fetchData(){
             }
         }
 
-    }else if(ma7<ma25){
-        trendText="空头";
+    }else if(ma7 < ma25 && strongTrend){
+        trend="空头";
         document.getElementById("trend").className="red";
 
-        if(rsi<50){
-            signalText="做空";
+        if(rsi < 45 && nearMA){
+            signal="做空";
             document.getElementById("signal").className="red";
             sl=(price+20).toFixed(2);
             tp=(price-40).toFixed(2);
@@ -110,12 +108,11 @@ async function fetchData(){
         }
 
     }else{
-        trendText="震荡";
-        document.getElementById("trend").className="wait";
+        document.getElementById("trend").className="gray";
     }
 
-    document.getElementById("trend").innerText=trendText;
-    document.getElementById("signal").innerText=signalText;
+    document.getElementById("trend").innerText=trend;
+    document.getElementById("signal").innerText=signal;
     document.getElementById("sl").innerText=sl;
     document.getElementById("tp").innerText=tp;
 }
