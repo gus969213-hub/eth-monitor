@@ -38,8 +38,10 @@ text-align:center;
 let lastAlert = "";
 
 async function fetchData(){
-let res = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=80");
+
+let res = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=100");
 let data = await res.json();
+
 let closes = data.map(c => parseFloat(c[4]));
 let price = closes[closes.length-1];
 
@@ -52,6 +54,12 @@ return arr.slice(-p).reduce((a,b)=>a+b)/p;
 let ma7 = MA(closes,7);
 let ma25 = MA(closes,25);
 
+/* ===== 修复斜率计算 ===== */
+let prevCloses = closes.slice(0,-1);
+let ma25Prev = prevCloses.slice(-25).reduce((a,b)=>a+b)/25;
+let ma25Slope = ma25 - ma25Prev;
+
+/* ===== RSI ===== */
 function RSI(values,period=14){
 let gains=0,losses=0;
 for(let i=values.length-period;i<values.length-1;i++){
@@ -65,16 +73,19 @@ return 100-(100/(1+rs));
 
 let rsi = RSI(closes);
 
-let trend="震荡";
-let zone="-";
+/* ===== 初始化 ===== */
+let trend="震荡区域";
+let zone="禁止交易";
 let safe="否";
 let allow="等待";
 let sl="-";
 let tp="-";
 
-let ma25Slope = ma25 - MA(closes.slice(0,-1),25);
+document.getElementById("trend").className="yellow";
 
+/* ===== 空头逻辑 ===== */
 if(ma7 < ma25 && ma25Slope < 0){
+
 trend="空头趋势";
 document.getElementById("trend").className="red";
 
@@ -83,28 +94,35 @@ let zoneHigh = ma25 + 5;
 zone = zoneLow.toFixed(2)+" - "+zoneHigh.toFixed(2);
 
 if(price >= zoneLow && price <= zoneHigh){
+
 safe="在安全区";
 document.getElementById("safe").className="green";
 
 if(rsi < 50){
 allow="允许做空";
 document.getElementById("allow").className="red";
+
 sl=(price+20).toFixed(2);
 tp=(price-40).toFixed(2);
 
 if(lastAlert !== "short"){
 document.getElementById("alertSound").play();
-lastAlert = "short";
+lastAlert="short";
 }
 
 }
+
 }else{
 safe="不在安全区";
 document.getElementById("safe").className="gray";
 lastAlert="";
 }
 
-}else if(ma7 > ma25 && ma25Slope > 0){
+}
+
+/* ===== 多头逻辑 ===== */
+else if(ma7 > ma25 && ma25Slope > 0){
+
 trend="多头趋势";
 document.getElementById("trend").className="green";
 
@@ -113,34 +131,34 @@ let zoneHigh = ma25 + 5;
 zone = zoneLow.toFixed(2)+" - "+zoneHigh.toFixed(2);
 
 if(price >= zoneLow && price <= zoneHigh){
+
 safe="在安全区";
 document.getElementById("safe").className="green";
 
 if(rsi > 50){
 allow="允许做多";
 document.getElementById("allow").className="green";
+
 sl=(price-20).toFixed(2);
 tp=(price+40).toFixed(2);
 
 if(lastAlert !== "long"){
 document.getElementById("alertSound").play();
-lastAlert = "long";
+lastAlert="long";
 }
 
 }
+
 }else{
 safe="不在安全区";
 document.getElementById("safe").className="gray";
 lastAlert="";
 }
 
-}else{
-trend="震荡区域";
-document.getElementById("trend").className="yellow";
-zone="禁止交易";
-lastAlert="";
 }
 
+/* ===== 输出 ===== */
+document.getElementById("trend").innerText=trend;
 document.getElementById("zone").innerText=zone;
 document.getElementById("safe").innerText=safe;
 document.getElementById("allow").innerText=allow;
