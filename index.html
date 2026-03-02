@@ -2,44 +2,53 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>ETH 15分钟合约监控</title>
+<title>ETH 15分钟结构反转系统</title>
 
 <style>
-body{
-    font-family:Arial;
-    text-align:center;
-    background:#111;
-    color:#fff;
-}
-h2{color:#00ffcc}
+body{font-family:Arial;text-align:center;background:#111;color:#fff}
 .green{color:#00ff88}
 .red{color:#ff4444}
 .yellow{color:#ffcc00}
 .gray{color:#aaa}
-.box{
-    border:1px solid #333;
-    margin:10px;
-    padding:10px;
-    border-radius:8px;
-    background:#1a1a1a;
-}
+button{padding:10px 20px;margin:10px;font-size:16px}
 </style>
 </head>
 
 <body>
 
-<h2>ETH 15分钟波段系统</h2>
+<h2>ETH 15分钟结构反转捕捉</h2>
 
-<div class="box">
+<button onclick="enableSound()">🔊 启动报警</button>
+
 <h3>当前价格：<span id="price">-</span></h3>
-<h3>结构：<span id="trend">-</span></h3>
-<h3>信号：<span id="mode">-</span></h3>
-<h3>入场建议：<span id="entry">-</span></h3>
+<h3>市场状态：<span id="status">-</span></h3>
+<h3>信号：<span id="signal">-</span></h3>
 <h3>止损：<span id="sl">-</span></h3>
 <h3>止盈：<span id="tp">-</span></h3>
-</div>
 
 <script>
+
+let audioCtx;
+let soundEnabled=false;
+
+function enableSound(){
+audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+soundEnabled=true;
+alert("报警已启动");
+}
+
+function beep(){
+if(!soundEnabled) return;
+let oscillator = audioCtx.createOscillator();
+let gainNode = audioCtx.createGain();
+oscillator.connect(gainNode);
+gainNode.connect(audioCtx.destination);
+oscillator.frequency.value = 900;
+oscillator.type = "sine";
+gainNode.gain.value = 0.3;
+oscillator.start();
+setTimeout(()=>{oscillator.stop();},300);
+}
 
 async function fetchData(){
 
@@ -49,63 +58,71 @@ let data = await res.json();
 let closes = data.map(c=>parseFloat(c[4]));
 let highs = data.map(c=>parseFloat(c[2]));
 let lows = data.map(c=>parseFloat(c[3]));
+let opens = data.map(c=>parseFloat(c[1]));
 
 let price = closes[closes.length-1];
-document.getElementById("price").innerText = price.toFixed(2);
+document.getElementById("price").innerText=price.toFixed(2);
 
-/* 计算均线 */
 function MA(arr,p){return arr.slice(-p).reduce((a,b)=>a+b)/p;}
-let ma7 = MA(closes,7);
-let ma25 = MA(closes,25);
+let ma7=MA(closes,7);
+let ma25=MA(closes,25);
 
-/* 计算区间 */
-let resistance = Math.max(...highs.slice(-20));
-let support = Math.min(...lows.slice(-20));
+function RSI(values,period=14){
+let gains=0,losses=0;
+for(let i=values.length-period;i<values.length-1;i++){
+let diff=values[i+1]-values[i];
+if(diff>0) gains+=diff;
+else losses-=diff;
+}
+let rs=gains/(losses||1);
+return 100-(100/(1+rs));
+}
+let rsi=RSI(closes);
 
-let trend="震荡结构";
-if(ma7 > ma25) trend="偏多结构";
-if(ma7 < ma25) trend="偏空结构";
+let recentHigh=Math.max(...highs.slice(-3));
+let recentLow=Math.min(...lows.slice(-3));
 
-let mode="等待靠近边缘";
-let entry="支撑："+support.toFixed(2)+" / 压力："+resistance.toFixed(2);
-let sl="固定20点止损";
-let tp="30-60点波段";
+let status="趋势判断中";
+let signal="等待";
+let sl="-";
+let tp="-";
 
-/* ===== 做多 ===== */
-if(price <= support+5 && ma7>=ma25){
+/* ===== 空头反转捕捉 ===== */
+if(rsi>65 && closes[closes.length-1]<recentLow){
 
-mode="低吸做多";
-entry="做多位置："+(support+2).toFixed(2);
-sl=(support-18).toFixed(2);
-tp=(support+40).toFixed(2);
-
-document.getElementById("mode").className="green";
+status="顶部反转";
+signal="🔴 结构破位做空";
+sl=(recentHigh+5).toFixed(2);
+tp=(price-40).toFixed(2);
+document.getElementById("signal").className="red";
+beep();
 }
 
-/* ===== 做空 ===== */
-else if(price >= resistance-5 && ma7<=ma25){
+/* ===== 多头反转捕捉 ===== */
+else if(rsi<35 && closes[closes.length-1]>recentHigh){
 
-mode="高抛做空";
-entry="做空位置："+(resistance-2).toFixed(2);
-sl=(resistance+18).toFixed(2);
-tp=(resistance-40).toFixed(2);
-
-document.getElementById("mode").className="red";
+status="底部反转";
+signal="🟢 结构突破做多";
+sl=(recentLow-5).toFixed(2);
+tp=(price+40).toFixed(2);
+document.getElementById("signal").className="green";
+beep();
 }
 
 else{
-document.getElementById("mode").className="yellow";
+
+status="无结构反转";
+signal="等待破位";
+document.getElementById("signal").className="yellow";
 }
 
-document.getElementById("trend").innerText=trend;
-document.getElementById("mode").innerText=mode;
-document.getElementById("entry").innerText=entry;
+document.getElementById("status").innerText=status;
+document.getElementById("signal").innerText=signal;
 document.getElementById("sl").innerText=sl;
 document.getElementById("tp").innerText=tp;
 
 }
 
-/* 每15秒刷新一次 */
 fetchData();
 setInterval(fetchData,15000);
 
