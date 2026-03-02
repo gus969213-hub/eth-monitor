@@ -2,27 +2,22 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>ETH 15分钟结构反转系统</title>
-
+<title>ETH 15分钟进攻型破位系统</title>
 <style>
 body{font-family:Arial;text-align:center;background:#111;color:#fff}
 .green{color:#00ff88}
 .red{color:#ff4444}
 .yellow{color:#ffcc00}
-.gray{color:#aaa}
 button{padding:10px 20px;margin:10px;font-size:16px}
 </style>
 </head>
-
 <body>
 
-<h2>ETH 15分钟结构反转捕捉</h2>
-
+<h2>ETH 15分钟进攻型破位系统</h2>
 <button onclick="enableSound()">🔊 启动报警</button>
 
 <h3>当前价格：<span id="price">-</span></h3>
-<h3>市场状态：<span id="status">-</span></h3>
-<h3>信号：<span id="signal">-</span></h3>
+<h3>信号：<span id="signal">等待</span></h3>
 <h3>止损：<span id="sl">-</span></h3>
 <h3>止盈：<span id="tp">-</span></h3>
 
@@ -30,6 +25,7 @@ button{padding:10px 20px;margin:10px;font-size:16px}
 
 let audioCtx;
 let soundEnabled=false;
+let lastSignal="";
 
 function enableSound(){
 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -37,17 +33,20 @@ soundEnabled=true;
 alert("报警已启动");
 }
 
-function beep(){
+function tripleBeep(){
 if(!soundEnabled) return;
-let oscillator = audioCtx.createOscillator();
-let gainNode = audioCtx.createGain();
-oscillator.connect(gainNode);
-gainNode.connect(audioCtx.destination);
-oscillator.frequency.value = 900;
-oscillator.type = "sine";
-gainNode.gain.value = 0.3;
-oscillator.start();
-setTimeout(()=>{oscillator.stop();},300);
+for(let i=0;i<3;i++){
+setTimeout(()=>{
+let osc = audioCtx.createOscillator();
+let gain = audioCtx.createGain();
+osc.connect(gain);
+gain.connect(audioCtx.destination);
+osc.frequency.value = 1000;
+gain.gain.value = 0.3;
+osc.start();
+setTimeout(()=>{osc.stop();},200);
+},i*300);
+}
 }
 
 async function fetchData(){
@@ -58,7 +57,6 @@ let data = await res.json();
 let closes = data.map(c=>parseFloat(c[4]));
 let highs = data.map(c=>parseFloat(c[2]));
 let lows = data.map(c=>parseFloat(c[3]));
-let opens = data.map(c=>parseFloat(c[1]));
 
 let price = closes[closes.length-1];
 document.getElementById("price").innerText=price.toFixed(2);
@@ -79,44 +77,44 @@ return 100-(100/(1+rs));
 }
 let rsi=RSI(closes);
 
-let recentHigh=Math.max(...highs.slice(-3));
-let recentLow=Math.min(...lows.slice(-3));
+let recentHigh=Math.max(...highs.slice(-5));
+let recentLow=Math.min(...lows.slice(-5));
 
-let status="趋势判断中";
 let signal="等待";
 let sl="-";
 let tp="-";
 
-/* ===== 空头反转捕捉 ===== */
-if(rsi>65 && closes[closes.length-1]<recentLow){
-
-status="顶部反转";
-signal="🔴 结构破位做空";
+/* ===== 做空 ===== */
+if(ma7<ma25 && price<recentLow && rsi>35){
+signal="🔴 趋势破位做空";
 sl=(recentHigh+5).toFixed(2);
 tp=(price-40).toFixed(2);
+
+if(lastSignal!=="short"){
+tripleBeep();
+lastSignal="short";
+}
 document.getElementById("signal").className="red";
-beep();
 }
 
-/* ===== 多头反转捕捉 ===== */
-else if(rsi<35 && closes[closes.length-1]>recentHigh){
-
-status="底部反转";
-signal="🟢 结构突破做多";
+/* ===== 做多 ===== */
+else if(ma7>ma25 && price>recentHigh && rsi<65){
+signal="🟢 趋势破位做多";
 sl=(recentLow-5).toFixed(2);
 tp=(price+40).toFixed(2);
+
+if(lastSignal!=="long"){
+tripleBeep();
+lastSignal="long";
+}
 document.getElementById("signal").className="green";
-beep();
 }
 
 else{
-
-status="无结构反转";
-signal="等待破位";
+signal="等待结构破位";
 document.getElementById("signal").className="yellow";
 }
 
-document.getElementById("status").innerText=status;
 document.getElementById("signal").innerText=signal;
 document.getElementById("sl").innerText=sl;
 document.getElementById("tp").innerText=tp;
@@ -124,7 +122,7 @@ document.getElementById("tp").innerText=tp;
 }
 
 fetchData();
-setInterval(fetchData,15000);
+setInterval(fetchData,5000);
 
 </script>
 
