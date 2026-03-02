@@ -2,30 +2,24 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>ETH 15M 专业报警系统</title>
+<title>ETH 15M 双模式系统</title>
 <style>
-body{
-background:#000;
-color:white;
-font-family:Arial;
-text-align:center;
-}
-.big{font-size:24px;margin:12px;}
+body{background:#000;color:white;font-family:Arial;text-align:center;}
+.big{font-size:22px;margin:10px;}
 .green{color:#00ff88;}
 .red{color:#ff4d4d;}
-.gray{color:#888;}
 .yellow{color:#ffd700;}
+.gray{color:#888;}
 </style>
 </head>
 <body>
 
-<h1>ETH 15分钟专业报警系统</h1>
+<h1>ETH 15分钟 双模式专业系统</h1>
 
-<div class="big">当前价格：<span id="price">加载中...</span></div>
-<div class="big">趋势方向：<span id="trend">计算中</span></div>
-<div class="big">推荐入场区间：<span id="zone">等待</span></div>
-<div class="big">当前是否安全：<span id="safe">-</span></div>
-<div class="big">是否允许进场：<span id="allow">-</span></div>
+<div class="big">当前价格：<span id="price">加载中</span></div>
+<div class="big">趋势：<span id="trend">计算中</span></div>
+<div class="big">信号类型：<span id="mode">等待</span></div>
+<div class="big">入场建议：<span id="entry">-</span></div>
 <div class="big">止损：<span id="sl">-</span></div>
 <div class="big">止盈：<span id="tp">-</span></div>
 
@@ -35,31 +29,29 @@ text-align:center;
 
 <script>
 
-let lastAlert = "";
+let lastAlert="";
 
 async function fetchData(){
 
 let res = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=100");
 let data = await res.json();
 
-let closes = data.map(c => parseFloat(c[4]));
-let price = closes[closes.length-1];
+let closes = data.map(c=>parseFloat(c[4]));
+let highs = data.map(c=>parseFloat(c[2]));
+let lows = data.map(c=>parseFloat(c[3]));
+let opens = data.map(c=>parseFloat(c[1]));
 
+let price = closes[closes.length-1];
 document.getElementById("price").innerText = price.toFixed(2);
 
-function MA(arr,p){
-return arr.slice(-p).reduce((a,b)=>a+b)/p;
-}
-
+function MA(arr,p){return arr.slice(-p).reduce((a,b)=>a+b)/p;}
 let ma7 = MA(closes,7);
 let ma25 = MA(closes,25);
 
-/* ===== 修复斜率计算 ===== */
 let prevCloses = closes.slice(0,-1);
 let ma25Prev = prevCloses.slice(-25).reduce((a,b)=>a+b)/25;
 let ma25Slope = ma25 - ma25Prev;
 
-/* ===== RSI ===== */
 function RSI(values,period=14){
 let gains=0,losses=0;
 for(let i=values.length-period;i<values.length-1;i++){
@@ -70,98 +62,67 @@ else losses-=diff;
 let rs=gains/(losses||1);
 return 100-(100/(1+rs));
 }
-
 let rsi = RSI(closes);
 
-/* ===== 初始化 ===== */
-let trend="震荡区域";
-let zone="禁止交易";
-let safe="否";
-let allow="等待";
+let trend="震荡";
+let mode="等待";
+let entry="-";
 let sl="-";
 let tp="-";
 
 document.getElementById("trend").className="yellow";
 
-/* ===== 空头逻辑 ===== */
+/* ===== 空头趋势 ===== */
 if(ma7 < ma25 && ma25Slope < 0){
 
 trend="空头趋势";
 document.getElementById("trend").className="red";
 
-let zoneLow = ma25 - 5;
-let zoneHigh = ma25 + 5;
-zone = zoneLow.toFixed(2)+" - "+zoneHigh.toFixed(2);
+/* 模式1：回调 */
+let zoneLow = ma25-5;
+let zoneHigh = ma25+5;
 
-if(price >= zoneLow && price <= zoneHigh){
+if(price>=zoneLow && price<=zoneHigh && rsi<50){
 
-safe="在安全区";
-document.getElementById("safe").className="green";
+mode="回调做空（稳）";
+document.getElementById("mode").className="yellow";
 
-if(rsi < 50){
-allow="允许做空";
-document.getElementById("allow").className="red";
-
+entry="当前价附近";
 sl=(price+20).toFixed(2);
 tp=(price-40).toFixed(2);
 
-if(lastAlert !== "short"){
+if(lastAlert!=="pullback"){
 document.getElementById("alertSound").play();
-lastAlert="short";
+lastAlert="pullback";
 }
 
 }
 
-}else{
-safe="不在安全区";
-document.getElementById("safe").className="gray";
-lastAlert="";
-}
+/* 模式2：加速追击 */
+let recentLow = Math.min(...lows.slice(-5));
+let bodySize = Math.abs(closes[closes.length-1]-opens[opens.length-1]);
 
-}
+if(price < recentLow && rsi<40 && bodySize>8){
 
-/* ===== 多头逻辑 ===== */
-else if(ma7 > ma25 && ma25Slope > 0){
+mode="加速空单（追击）";
+document.getElementById("mode").className="red";
 
-trend="多头趋势";
-document.getElementById("trend").className="green";
+entry="突破当前价";
+sl=(price+15).toFixed(2);
+tp=(price-60).toFixed(2);
 
-let zoneLow = ma25 - 5;
-let zoneHigh = ma25 + 5;
-zone = zoneLow.toFixed(2)+" - "+zoneHigh.toFixed(2);
-
-if(price >= zoneLow && price <= zoneHigh){
-
-safe="在安全区";
-document.getElementById("safe").className="green";
-
-if(rsi > 50){
-allow="允许做多";
-document.getElementById("allow").className="green";
-
-sl=(price-20).toFixed(2);
-tp=(price+40).toFixed(2);
-
-if(lastAlert !== "long"){
+if(lastAlert!=="break"){
 document.getElementById("alertSound").play();
-lastAlert="long";
+lastAlert="break";
 }
 
 }
 
-}else{
-safe="不在安全区";
-document.getElementById("safe").className="gray";
-lastAlert="";
 }
 
-}
-
-/* ===== 输出 ===== */
 document.getElementById("trend").innerText=trend;
-document.getElementById("zone").innerText=zone;
-document.getElementById("safe").innerText=safe;
-document.getElementById("allow").innerText=allow;
+document.getElementById("mode").innerText=mode;
+document.getElementById("entry").innerText=entry;
 document.getElementById("sl").innerText=sl;
 document.getElementById("tp").innerText=tp;
 
