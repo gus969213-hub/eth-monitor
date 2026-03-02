@@ -1,12 +1,11 @@
 async function fetchData(){
 
-let res = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=100");
+let res = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=120");
 let data = await res.json();
 
 let closes = data.map(c=>parseFloat(c[4]));
 let highs = data.map(c=>parseFloat(c[2]));
 let lows = data.map(c=>parseFloat(c[3]));
-let opens = data.map(c=>parseFloat(c[1]));
 
 let price = closes[closes.length-1];
 document.getElementById("price").innerText = price.toFixed(2);
@@ -15,81 +14,49 @@ function MA(arr,p){return arr.slice(-p).reduce((a,b)=>a+b)/p;}
 let ma7 = MA(closes,7);
 let ma25 = MA(closes,25);
 
-let prevCloses = closes.slice(0,-1);
-let ma25Prev = prevCloses.slice(-25).reduce((a,b)=>a+b)/25;
-let ma25Slope = ma25 - ma25Prev;
+let resistance = Math.max(...highs.slice(-20));
+let support = Math.min(...lows.slice(-20));
 
-function RSI(values,period=14){
-let gains=0,losses=0;
-for(let i=values.length-period;i<values.length-1;i++){
-let diff=values[i+1]-values[i];
-if(diff>0) gains+=diff;
-else losses-=diff;
-}
-let rs=gains/(losses||1);
-return 100-(100/(1+rs));
-}
-let rsi = RSI(closes);
-
-let trend="震荡";
+let trend="震荡结构";
 let mode="等待";
 let entry="";
 let sl="";
 let tp="";
 
-document.getElementById("trend").className="yellow";
-document.getElementById("mode").className="gray";
+if(ma7 > ma25) trend="偏多结构";
+if(ma7 < ma25) trend="偏空结构";
 
-/* ===== 空头趋势 ===== */
-if(ma7 < ma25 && ma25Slope < 0){
+/* ===== 做多逻辑 ===== */
+if(price <= support+5 && ma7>=ma25){
 
-trend="空头趋势";
-document.getElementById("trend").className="red";
+mode="低吸做多";
+entry="做多位置："+(support+2).toFixed(2);
+sl=(support-18).toFixed(2);
+tp=(support+40).toFixed(2);
 
-/* 回调做空 */
-let zoneLow = ma25-5;
-let zoneHigh = ma25+5;
-
-if(price>=zoneLow && price<=zoneHigh && rsi<50){
-
-mode="回调做空（稳）";
-entry="当前价 "+price.toFixed(2);
-sl=(price+20).toFixed(2);
-tp=(price-40).toFixed(2);
-
-document.getElementById("mode").className="yellow";
+document.getElementById("mode").className="green";
 }
 
-/* 加速追击 */
-let recentLow = Math.min(...lows.slice(-5));
-let bodySize = Math.abs(closes[closes.length-1]-opens[opens.length-1]);
+/* ===== 做空逻辑 ===== */
+else if(price >= resistance-5 && ma7<=ma25){
 
-if(price < recentLow && rsi<40 && bodySize>8){
-
-mode="加速空单（追击）";
-entry="突破价 "+price.toFixed(2);
-sl=(price+15).toFixed(2);
-tp=(price-60).toFixed(2);
+mode="高抛做空";
+entry="做空位置："+(resistance-2).toFixed(2);
+sl=(resistance+18).toFixed(2);
+tp=(resistance-40).toFixed(2);
 
 document.getElementById("mode").className="red";
 }
+
+else{
+
+mode="等待靠近边缘";
+entry="支撑："+support.toFixed(2)+" / 压力："+resistance.toFixed(2);
+sl="固定20止损";
+tp="30-60波段";
+
+document.getElementById("mode").className="yellow";
 }
-
-/* ===== 如果没有信号 ===== */
-
-if(entry===""){
-
-let recentHigh = Math.max(...highs.slice(-20));
-let recentLow = Math.min(...lows.slice(-20));
-
-mode="震荡观望";
-entry="突破 "+recentHigh.toFixed(2)+" 做多 / 跌破 "+recentLow.toFixed(2)+" 做空";
-sl="突破后失效止损";
-tp="30-80点区间";
-
-}
-
-/* 输出 */
 
 document.getElementById("trend").innerText=trend;
 document.getElementById("mode").innerText=mode;
