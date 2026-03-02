@@ -1,3 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>ETH 15分钟合约监控</title>
+
+<style>
+body{
+    font-family:Arial;
+    text-align:center;
+    background:#111;
+    color:#fff;
+}
+h2{color:#00ffcc}
+.green{color:#00ff88}
+.red{color:#ff4444}
+.yellow{color:#ffcc00}
+.gray{color:#aaa}
+.box{
+    border:1px solid #333;
+    margin:10px;
+    padding:10px;
+    border-radius:8px;
+    background:#1a1a1a;
+}
+</style>
+</head>
+
+<body>
+
+<h2>ETH 15分钟波段系统</h2>
+
+<div class="box">
+<h3>当前价格：<span id="price">-</span></h3>
+<h3>结构：<span id="trend">-</span></h3>
+<h3>信号：<span id="mode">-</span></h3>
+<h3>入场建议：<span id="entry">-</span></h3>
+<h3>止损：<span id="sl">-</span></h3>
+<h3>止盈：<span id="tp">-</span></h3>
+</div>
+
+<script>
+
 async function fetchData(){
 
 let res = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=120");
@@ -10,23 +53,25 @@ let lows = data.map(c=>parseFloat(c[3]));
 let price = closes[closes.length-1];
 document.getElementById("price").innerText = price.toFixed(2);
 
+/* 计算均线 */
 function MA(arr,p){return arr.slice(-p).reduce((a,b)=>a+b)/p;}
 let ma7 = MA(closes,7);
 let ma25 = MA(closes,25);
 
+/* 计算区间 */
 let resistance = Math.max(...highs.slice(-20));
 let support = Math.min(...lows.slice(-20));
 
 let trend="震荡结构";
-let mode="等待";
-let entry="";
-let sl="";
-let tp="";
-
 if(ma7 > ma25) trend="偏多结构";
 if(ma7 < ma25) trend="偏空结构";
 
-/* ===== 做多逻辑 ===== */
+let mode="等待靠近边缘";
+let entry="支撑："+support.toFixed(2)+" / 压力："+resistance.toFixed(2);
+let sl="固定20点止损";
+let tp="30-60点波段";
+
+/* ===== 做多 ===== */
 if(price <= support+5 && ma7>=ma25){
 
 mode="低吸做多";
@@ -37,7 +82,7 @@ tp=(support+40).toFixed(2);
 document.getElementById("mode").className="green";
 }
 
-/* ===== 做空逻辑 ===== */
+/* ===== 做空 ===== */
 else if(price >= resistance-5 && ma7<=ma25){
 
 mode="高抛做空";
@@ -49,12 +94,6 @@ document.getElementById("mode").className="red";
 }
 
 else{
-
-mode="等待靠近边缘";
-entry="支撑："+support.toFixed(2)+" / 压力："+resistance.toFixed(2);
-sl="固定20止损";
-tp="30-60波段";
-
 document.getElementById("mode").className="yellow";
 }
 
@@ -65,3 +104,12 @@ document.getElementById("sl").innerText=sl;
 document.getElementById("tp").innerText=tp;
 
 }
+
+/* 每15秒刷新一次 */
+fetchData();
+setInterval(fetchData,15000);
+
+</script>
+
+</body>
+</html>
